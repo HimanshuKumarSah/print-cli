@@ -4,6 +4,7 @@ import os
 import sys
 import platform
 from .printing import check_os, get_printers, print_file, PDF_PRINTER, validate_page_range
+from .converter import convert_to_pdf
 
 WELCOME_ART = """
   _____       _       _      _____ _      _____ 
@@ -52,6 +53,12 @@ def cli(file_path):
     click.echo(click.style(INSTRUCTIONS, fg="white"))
     click.echo(click.style("-" * 50, fg="bright_black"))
     click.echo(f"  Target File: {click.style(os.path.basename(file_path), fg='green', bold=True)}")
+    
+    # Handle non-PDF conversion
+    target_file, was_converted = convert_to_pdf(file_path)
+    if was_converted:
+        click.echo(click.style("  (Converted to PDF for printing...)", fg="yellow", italic=True))
+    
     click.echo(click.style("-" * 50, fg="bright_black"))
     click.echo("")
 
@@ -78,6 +85,8 @@ def cli(file_path):
 
     if not printer:
         click.echo("Selection cancelled.")
+        if was_converted and os.path.exists(target_file):
+            os.remove(target_file)
         return
 
     # Prompt user for page selection
@@ -90,6 +99,8 @@ def cli(file_path):
 
     if not page_range:
         click.echo("Job cancelled.")
+        if was_converted and os.path.exists(target_file):
+            os.remove(target_file)
         return
 
     # Prompt for Color Mode
@@ -102,6 +113,8 @@ def cli(file_path):
         
         if not color_mode:
             click.echo("Job cancelled.")
+            if was_converted and os.path.exists(target_file):
+                os.remove(target_file)
             return
 
     # Prompt for Duplex Mode
@@ -114,6 +127,8 @@ def cli(file_path):
 
         if not duplex_mode:
             click.echo("Job cancelled.")
+            if was_converted and os.path.exists(target_file):
+                os.remove(target_file)
             return
 
         if "Double-Sided" in duplex_mode:
@@ -127,6 +142,8 @@ def cli(file_path):
 
     if not orientation:
         click.echo("Job cancelled.")
+        if was_converted and os.path.exists(target_file):
+            os.remove(target_file)
         return
 
     # Prompt for Paper Size and Scaling
@@ -140,6 +157,8 @@ def cli(file_path):
         
         if not paper_size:
             click.echo("Job cancelled.")
+            if was_converted and os.path.exists(target_file):
+                os.remove(target_file)
             return
             
         fit_to_page = questionary.confirm(
@@ -156,6 +175,8 @@ def cli(file_path):
         ).ask()
         if not output_path:
             click.echo("Job cancelled.")
+            if was_converted and os.path.exists(target_file):
+                os.remove(target_file)
             return
         if not output_path.lower().endswith(".pdf"):
             output_path += ".pdf"
@@ -170,6 +191,8 @@ def cli(file_path):
 
         if not copies:
             click.echo("Job cancelled.")
+            if was_converted and os.path.exists(target_file):
+                os.remove(target_file)
             return
 
     # Final confirmation
@@ -189,7 +212,7 @@ def cli(file_path):
         if platform.system() == "Windows" and printer != PDF_PRINTER:
             click.secho("\nNote: Color, Duplex, Size, and Scaling on Windows depend on your printer's default settings.", fg="yellow")
 
-        success = print_file(file_path, printer, int(copies), page_range, color_mode, duplex_mode, paper_size, fit_to_page, orientation, output_path)
+        success = print_file(target_file, printer, int(copies), page_range, color_mode, duplex_mode, paper_size, fit_to_page, orientation, output_path)
         if success:
             msg = f"File successfully saved to '{output_path}'." if printer == PDF_PRINTER else f"Job successfully submitted to '{printer}'."
             click.secho(f"\nSUCCESS: {msg}", fg="green", bold=True)
@@ -198,6 +221,10 @@ def cli(file_path):
             click.secho(f"\nERROR: {msg}", fg="red", bold=True)
     else:
         click.echo("Print job cancelled.")
+
+    # Cleanup temp file if converted
+    if was_converted and os.path.exists(target_file):
+        os.remove(target_file)
 
 if __name__ == "__main__":
     cli()

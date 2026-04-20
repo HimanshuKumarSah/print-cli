@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "A user-friendly, interactive CLI for printing documents."
 dependencies = [
     "questionary",
-    "click"
+    "click",
+    "fpdf2",
+    "Pillow"
 ]
 
 [project.scripts]
