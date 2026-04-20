@@ -10,7 +10,8 @@ dependencies = [
     "questionary",
     "click",
     "fpdf2",
-    "Pillow"
+    "Pillow",
+    "pypdf"
 ]
 
 [project.scripts]

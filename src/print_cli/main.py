@@ -3,8 +3,9 @@ import questionary
 import os
 import sys
 import platform
+import tempfile
 from .printing import check_os, get_printers, print_file, PDF_PRINTER, validate_page_range
-from .converter import convert_to_pdf
+from .converter import convert_to_pdf, collect_files, merge_pdfs
 
 WELCOME_ART = """
   _____       _       _      _____ _      _____ 
@@ -24,16 +25,9 @@ INSTRUCTIONS = """
  • Use BACKSPACE to edit text inputs.
  • Press CTRL+C to cancel at any time.
 
-[ PAGE SELECTION ]
- • '*'   : Print all pages (default)
- • '1-5' : Print a specific range
- • '1,3' : Print specific pages
-
-[ OPTIONS ]
- • Choose between COLOR and BLACK & WHITE.
- • Select SINGLE or DOUBLE-SIDED printing.
- • Pick PAPER SIZE (A4/Letter) and AUTO-SCALE.
- • Choose ORIENTATION (Auto/Portrait/Landscape).
+[ AUTOMATION ]
+ • Pass flags to skip prompts: --printer, --pages, --bw, etc.
+ • Use --yes (-y) for fully non-interactive printing.
 """
 
 DUPLEX_WARNING = """
@@ -44,23 +38,44 @@ by the printer hardware or system dialog.
 """
 
 @click.command()
-@click.argument("file_path", type=click.Path(exists=True))
-def cli(file_path):
+@click.argument("paths", nargs=-1, type=click.Path(exists=True))
+@click.option("-d", "--printer", help="Target printer name.")
+@click.option("-p", "--pages", help="Page range (e.g., '*', '1-5', '1,3,5').")
+@click.option("-n", "--copies", type=int, help="Number of copies.")
+@click.option("--bw", "color_mode", flag_value="Black & White", help="Print in Black & White.")
+@click.option("--color", "color_mode", flag_value="Color", help="Print in Color.")
+@click.option("--sides", type=click.Choice(["one-sided", "two-sided-long-edge", "two-sided-short-edge"], case_sensitive=False), help="Duplex mode.")
+@click.option("--size", type=click.Choice(["A4", "Letter", "Legal", "A5"], case_sensitive=False), help="Paper size.")
+@click.option("--orientation", type=click.Choice(["Auto", "Portrait", "Landscape"], case_sensitive=False), help="Page orientation.")
+@click.option("--fit/--no-fit", default=None, help="Fit to page scaling.")
+@click.option("-m/-nm", "--merge/--no-merge", default=None, help="Merge multiple files into one job.")
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation prompt.")
+@click.option("-o", "--output", help="Output path for 'Save as PDF' mode.")
+def cli(paths, printer, pages, copies, color_mode, sides, size, orientation, fit, merge, yes, output):
     """An intuitive, interactive printing CLI."""
-    # Display Welcome Art and Instructions
-    click.clear()
-    click.echo(click.style(WELCOME_ART, fg="cyan", bold=True))
-    click.echo(click.style(INSTRUCTIONS, fg="white"))
-    click.echo(click.style("-" * 50, fg="bright_black"))
-    click.echo(f"  Target File: {click.style(os.path.basename(file_path), fg='green', bold=True)}")
+    if not paths:
+        click.secho("Error: No files or directories provided.", fg="red")
+        sys.exit(1)
+
+    # Only show art/instructions if not in fully silent mode
+    if not (yes and printer and pages):
+        click.clear()
+        click.echo(click.style(WELCOME_ART, fg="cyan", bold=True))
+        click.echo(click.style(INSTRUCTIONS, fg="white"))
     
-    # Handle non-PDF conversion
-    target_file, was_converted = convert_to_pdf(file_path)
-    if was_converted:
-        click.echo(click.style("  (Converted to PDF for printing...)", fg="yellow", italic=True))
-    
-    click.echo(click.style("-" * 50, fg="bright_black"))
-    click.echo("")
+    files = collect_files(paths)
+    if not files:
+        click.secho("No supported files found in the provided paths.", fg="red")
+        sys.exit(1)
+
+    if not (yes and printer and pages):
+        click.echo(click.style("-" * 50, fg="bright_black"))
+        if len(files) == 1:
+            click.echo(f"  Target File: {click.style(os.path.basename(files[0]), fg='green', bold=True)}")
+        else:
+            click.echo(f"  Target Files: {click.style(f'{len(files)} files found', fg='green', bold=True)}")
+        click.echo(click.style("-" * 50, fg="bright_black"))
+        click.echo("")
 
     check_os()
     
@@ -69,162 +84,174 @@ def cli(file_path):
         click.secho("No printers found and could not initialize a virtual PDF printer.", fg="red")
         sys.exit(1)
 
-    # Prompt user to select a printer
-    printer = questionary.select(
-        "Which printer would you like to use?",
-        choices=printers,
-        style=questionary.Style([
-            ('qmark', 'fg:cyan bold'),
-            ('question', 'bold'),
-            ('answer', 'fg:green bold'),
-            ('pointer', 'fg:cyan bold'),
-            ('highlighted', 'fg:cyan'),
-            ('selected', 'fg:green'),
-        ])
-    ).ask()
+    # 1. Printer Selection
+    if not printer:
+        printer = questionary.select("Which printer would you like to use?", choices=printers).ask()
+    elif printer not in printers:
+        click.secho(f"Error: Printer '{printer}' not found.", fg="red")
+        sys.exit(1)
 
     if not printer:
-        click.echo("Selection cancelled.")
-        if was_converted and os.path.exists(target_file):
-            os.remove(target_file)
         return
 
-    # Prompt user for page selection
-    page_range = questionary.text(
-        "Which pages would you like to print?",
-        default="*",
-        instruction=" (Options: '*' for all, '1-5' for range, '1,3' for list)",
-        validate=validate_page_range
-    ).ask()
-
-    if not page_range:
-        click.echo("Job cancelled.")
-        if was_converted and os.path.exists(target_file):
-            os.remove(target_file)
-        return
-
-    # Prompt for Color Mode
-    color_mode = "Color"
-    if printer != PDF_PRINTER:
-        color_mode = questionary.select(
-            "Select color mode:",
-            choices=["Color", "Black & White"]
-        ).ask()
+    # 2. Batch Handling
+    final_files = []
+    temps_to_cleanup = []
+    
+    if len(files) > 1:
+        if merge is None:
+            merge = questionary.confirm(f"Would you like to merge all {len(files)} files into a single print job?", default=True).ask()
         
-        if not color_mode:
-            click.echo("Job cancelled.")
-            if was_converted and os.path.exists(target_file):
-                os.remove(target_file)
-            return
+        if merge:
+            converted_pdfs = []
+            for f in files:
+                target, was_conv = convert_to_pdf(f)
+                converted_pdfs.append(target)
+                if was_conv:
+                    temps_to_cleanup.append(target)
+            
+            merged_pdf = os.path.join(tempfile.gettempdir(), f"print_cli_merged_{os.getpid()}.pdf")
+            if merge_pdfs(converted_pdfs, merged_pdf):
+                final_files = [merged_pdf]
+                temps_to_cleanup.append(merged_pdf)
+            else:
+                final_files = files
+        else:
+            final_files = files
+    else:
+        final_files = files
 
-    # Prompt for Duplex Mode
-    duplex_mode = "One-Sided"
-    if printer != PDF_PRINTER:
-        duplex_mode = questionary.select(
+    # 3. Page Selection
+    if not pages:
+        pages = questionary.text(
+            "Which pages would you like to print?",
+            default="*",
+            instruction=" (Options: '*' for all, '1-5' for range, '1,3' for list)",
+            validate=validate_page_range
+        ).ask()
+    else:
+        val_res = validate_page_range(pages)
+        if val_res is not True:
+            click.secho(f"Error: {val_res}", fg="red")
+            cleanup(temps_to_cleanup)
+            sys.exit(1)
+
+    if not pages:
+        cleanup(temps_to_cleanup)
+        return
+
+    # 4. Color Mode
+    if not color_mode and printer != PDF_PRINTER:
+        color_mode = questionary.select("Select color mode:", choices=["Color", "Black & White"]).ask()
+    elif not color_mode:
+        color_mode = "Color"
+
+    # 5. Duplex Mode
+    if not sides and printer != PDF_PRINTER:
+        sides_raw = questionary.select(
             "Select printing side:",
             choices=["One-Sided", "Double-Sided (Long-Edge)", "Double-Sided (Short-Edge)"]
         ).ask()
+        if sides_raw == "One-Sided": sides = "one-sided"
+        elif sides_raw == "Double-Sided (Long-Edge)": sides = "two-sided-long-edge"
+        elif sides_raw == "Double-Sided (Short-Edge)": sides = "two-sided-short-edge"
+    elif not sides:
+        sides = "one-sided"
 
-        if not duplex_mode:
-            click.echo("Job cancelled.")
-            if was_converted and os.path.exists(target_file):
-                os.remove(target_file)
-            return
+    # Map internal names for display and print_file
+    duplex_map = {
+        "one-sided": "One-Sided",
+        "two-sided-long-edge": "Double-Sided (Long-Edge)",
+        "two-sided-short-edge": "Double-Sided (Short-Edge)"
+    }
+    duplex_display = duplex_map.get(sides.lower(), "One-Sided") if sides else "One-Sided"
 
-        if "Double-Sided" in duplex_mode:
-            click.echo(click.style(DUPLEX_WARNING, fg="bright_yellow", bold=True))
+    if "two-sided" in sides.lower() and not yes:
+        click.echo(click.style(DUPLEX_WARNING, fg="bright_yellow", bold=True))
 
-    # Prompt for Orientation
-    orientation = questionary.select(
-        "Select orientation:",
-        choices=["Auto", "Portrait", "Landscape"]
-    ).ask()
-
+    # 6. Orientation
     if not orientation:
-        click.echo("Job cancelled.")
-        if was_converted and os.path.exists(target_file):
-            os.remove(target_file)
-        return
+        orientation = questionary.select("Select orientation:", choices=["Auto", "Portrait", "Landscape"]).ask()
+    
+    orientation = orientation.capitalize() if orientation else "Auto"
 
-    # Prompt for Paper Size and Scaling
-    paper_size = "A4"
-    fit_to_page = False
-    if printer != PDF_PRINTER:
-        paper_size = questionary.select(
-            "Select paper size:",
-            choices=["A4", "Letter", "Legal", "A5"]
-        ).ask()
-        
-        if not paper_size:
-            click.echo("Job cancelled.")
-            if was_converted and os.path.exists(target_file):
-                os.remove(target_file)
-            return
-            
-        fit_to_page = questionary.confirm(
-            "Fit to page (auto-scale)?",
-            default=False
-        ).ask()
+    # 7. Paper Size & Fit
+    if not size and printer != PDF_PRINTER:
+        size = questionary.select("Select paper size:", choices=["A4", "Letter", "Legal", "A5"]).ask()
+    elif not size:
+        size = "A4"
+    size = size.upper() if size else "A4"
 
-    output_path = None
+    if fit is None and printer != PDF_PRINTER:
+        fit = questionary.confirm("Fit to page (auto-scale)?", default=False).ask()
+    elif fit is None:
+        fit = False
+
+    # 8. Copies & Output Path
     if printer == PDF_PRINTER:
-        # Prompt for output file name
-        output_path = questionary.text(
-            "Enter output PDF file path:",
-            default=f"printed_{os.path.basename(file_path)}.pdf",
-        ).ask()
-        if not output_path:
-            click.echo("Job cancelled.")
-            if was_converted and os.path.exists(target_file):
-                os.remove(target_file)
+        if not output:
+            output = questionary.text(
+                "Enter output PDF file path:",
+                default="merged_output.pdf" if len(final_files) == 1 and len(files) > 1 else f"printed_{os.path.basename(files[0])}.pdf",
+            ).ask()
+        if not output:
+            cleanup(temps_to_cleanup)
             return
-        if not output_path.lower().endswith(".pdf"):
-            output_path += ".pdf"
+        if not output.lower().endswith(".pdf"):
+            output += ".pdf"
         copies = 1
     else:
-        # Prompt user for number of copies
-        copies = questionary.text(
-            "How many copies?",
-            default="1",
-            validate=lambda val: val.isdigit() and int(val) > 0 or "Please enter a positive integer."
-        ).ask()
-
-        if not copies:
-            click.echo("Job cancelled.")
-            if was_converted and os.path.exists(target_file):
-                os.remove(target_file)
-            return
-
+        if copies is None:
+            copies_str = questionary.text(
+                "How many copies?",
+                default="1",
+                validate=lambda val: val.isdigit() and int(val) > 0 or "Please enter a positive integer."
+            ).ask()
+            copies = int(copies_str) if copies_str else 1
+        
     # Final confirmation
-    action = f"Save '{os.path.basename(file_path)}' as '{output_path}'" if printer == PDF_PRINTER else f"Print '{os.path.basename(file_path)}' to '{printer}' ({copies} copies)"
-    pages_msg = f" (Pages: {page_range})" if page_range != "*" else ""
+    file_label = f"{len(files)} files" if len(files) > 1 and len(final_files) > 1 else (os.path.basename(files[0]) if len(files) == 1 else "merged document")
+    action = f"Save '{file_label}' as '{output}'" if printer == PDF_PRINTER else f"Print '{file_label}' to '{printer}' ({copies} copies each)"
+    pages_msg = f" (Pages: {pages})" if pages != "*" else ""
     color_msg = f" [{color_mode}]" if printer != PDF_PRINTER else ""
-    duplex_msg = f" [{duplex_mode}]" if printer != PDF_PRINTER else ""
-    layout_msg = f" [{paper_size}, {orientation}, Fit: {fit_to_page}]" if printer != PDF_PRINTER else f" [{orientation}]"
+    duplex_msg = f" [{duplex_display}]" if printer != PDF_PRINTER else ""
+    layout_msg = f" [{size}, {orientation}, Fit: {fit}]" if printer != PDF_PRINTER else f" [{orientation}]"
     
-    confirm = questionary.confirm(
-        f"{action}{pages_msg}{color_msg}{duplex_msg}{layout_msg}?",
-        default=True
-    ).ask()
+    confirm = yes
+    if not yes:
+        confirm = questionary.confirm(f"{action}{pages_msg}{color_msg}{duplex_msg}{layout_msg}?").ask()
 
     if confirm:
-        # Notes for Windows users
-        if platform.system() == "Windows" and printer != PDF_PRINTER:
-            click.secho("\nNote: Color, Duplex, Size, and Scaling on Windows depend on your printer's default settings.", fg="yellow")
+        if platform.system() == "Windows" and printer != PDF_PRINTER and not yes:
+            click.secho("\nNote: Some settings on Windows depend on your printer's default settings.", fg="yellow")
 
-        success = print_file(target_file, printer, int(copies), page_range, color_mode, duplex_mode, paper_size, fit_to_page, orientation, output_path)
-        if success:
-            msg = f"File successfully saved to '{output_path}'." if printer == PDF_PRINTER else f"Job successfully submitted to '{printer}'."
-            click.secho(f"\nSUCCESS: {msg}", fg="green", bold=True)
-        else:
-            msg = f"Failed to save file to '{output_path}'." if printer == PDF_PRINTER else f"Failed to submit print job to '{printer}'."
-            click.secho(f"\nERROR: {msg}", fg="red", bold=True)
+        for f in final_files:
+            target, was_conv = convert_to_pdf(f)
+            if was_conv:
+                temps_to_cleanup.append(target)
+            
+            success = print_file(target, printer, copies, pages, color_mode, duplex_display, size, fit, orientation, output)
+            if not success:
+                click.secho(f"\nERROR: Failed to process '{os.path.basename(f)}'.", fg="red", bold=True)
+            elif len(final_files) == 1:
+                msg = f"File successfully saved to '{output}'." if printer == PDF_PRINTER else f"Job successfully submitted to '{printer}'."
+                click.secho(f"\nSUCCESS: {msg}", fg="green", bold=True)
+        
+        if len(final_files) > 1:
+            click.secho(f"\nSUCCESS: All {len(final_files)} jobs submitted to '{printer}'.", fg="green", bold=True)
     else:
         click.echo("Print job cancelled.")
 
-    # Cleanup temp file if converted
-    if was_converted and os.path.exists(target_file):
-        os.remove(target_file)
+    cleanup(temps_to_cleanup)
+
+def cleanup(temp_files):
+    """Deletes temporary files."""
+    for f in temp_files:
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     cli()
