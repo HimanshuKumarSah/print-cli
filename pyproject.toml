@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "print-cli"
+version = "0.1.0"
+description = "A user-friendly, interactive CLI for printing documents."
+dependencies = [
+    "questionary",
+    "click"
+]
+
+[project.scripts]
+print-cli = "print_cli.main:cli"
