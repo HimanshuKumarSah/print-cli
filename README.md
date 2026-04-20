@@ -23,6 +23,14 @@
 
 ## 🚀 Installation
 
+### ⚡ Instant Run (No Install Required)
+If you have [uv](https://github.com/astral-sh/uv) installed, you can run the tool instantly without manual installation:
+
+```bash
+uvx --from git+https://github.com/HimanshuKumarSah/print-cli.git print-cli <file_path>
+```
+
+### 🛠️ Standard Installation
 Install the package in editable mode using pip:
 
 ```bash
