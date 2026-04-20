@@ -1,76 +1,106 @@
-# Print CLI
+# 🖨️ Print CLI
 
-An intuitive, interactive command-line interface for printing documents on Linux, macOS, and Windows.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Linux | macOS | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#)
 
-## Features
-- **Interactive Selection:** Choose from available printers using arrow keys.
-- **Universal File Support:** Print PDFs, Images (`.jpg`, `.png`, `.bmp`, `.gif`), and Text files (`.txt`, `.md`, `.log`) with automatic conversion.
-- **Bulk & Batch Printing:** Pass multiple files or entire directories. Automatically discovers all supported files.
-- **Smart Merging:** Option to merge multiple files into a single seamless print job or print them individually.
-- **Automation Ready:** Supports command-line flags to skip interactive prompts—perfect for scripts and AI agents.
-- **Page Selection:** Select all pages (`*`), specific ranges (`1-5`), or a list of pages (`1,3,5`).
-- **Color Mode:** Choose between Color and Black & White printing.
-- **Duplex Support:** Print single-sided or double-sided (Long-edge or Short-edge).
-- **Orientation Override:** Force Portrait, Landscape, or use Auto-detection.
-- **Layout Control:** Select from popular paper sizes (A4, Letter, Legal, A5) and toggle "Fit to Page" scaling.
-- **Always-on PDF Support:** "Print to PDF" is always available to save documents as files.
-- **Cross-Platform:** Works seamlessly on Linux, macOS, and Windows.
+**Print CLI** is a modern, intuitive, and cross-platform command-line interface for printing documents. It abstracts away the complexity of native system commands (`lp`, `PowerShell`, `CUPS`) into a beautiful, interactive experience that works seamlessly on **Linux, macOS, and Windows**.
 
-## Installation
-1. Clone the repository.
-2. Install the package in editable mode:
-   ```bash
-   pip install -e .
-   ```
+---
 
-## Usage
-Run the `print-cli` command followed by one or more files or directories:
+## ✨ Key Features
+
+*   **🎨 Interactive UI:** Beautiful, color-coded menus for selecting printers and options.
+*   **🖼️ Universal Support:** Print PDFs, Images (`.jpg`, `.png`, `.gif`), and Text (`.txt`, `.md`, `.log`) with automatic PDF conversion.
+*   **📦 Batch Printing:** Pass multiple files or entire directories. Automatically discovers all supported files.
+*   **🔗 Smart Merging:** Combine multiple files into a single, seamless PDF print job on the fly.
+*   **🤖 AI & Automation Ready:** Use command-line flags to skip prompts—perfect for scripts and AI agents.
+*   **📄 Advanced Page Control:** Select specific ranges (`1-5`), lists (`1,3,5`), or a mix of both.
+*   **🌓 Full Print Control:** Toggle Color/Grayscale, Duplex (one/two-sided), Orientation, and Paper Size (A4, Letter, etc.).
+*   **💾 Always-on PDF Support:** A "Save to PDF" option is always available, even if no physical printers are found.
+
+---
+
+## 🚀 Installation
+
+Install the package in editable mode using pip:
+
 ```bash
-# Interactive Mode
-print-cli document.pdf
-
-# Automation Mode (Skip Prompts)
-print-cli document.pdf --printer "My-Printer" --pages "1-5" --bw -y
-
-# Bulk Printing
-print-cli image.png report.pdf ./my_documents/
+git clone https://github.com/HimanshuKumarSah/print-cli.git
+cd print-cli
+pip install -e .
 ```
 
-### Automation Flags
-Pass these flags to skip interactive prompts or for use in scripts/AI agents:
-| Flag | Short | Description | Options |
+---
+
+## 📖 Usage
+
+### 🎮 Interactive Mode
+Simply pass a file or folder path. The tool will guide you through the rest.
+
+```bash
+print-cli document.pdf
+```
+
+### 📁 Bulk & Folder Printing
+Provide multiple paths or a directory to trigger batch mode.
+
+```bash
+print-cli image.png report.pdf ./docs_folder/
+```
+
+### 🤖 Automation (Non-Interactive)
+Perfect for AI agents or CI/CD scripts. Use flags to skip menus and `-y` to confirm automatically.
+
+```bash
+# Print 2 copies in B&W, double-sided, pages 1-3, and skip confirmation
+print-cli report.pdf --printer "Office-HP-Laser" --pages 1-3 --bw --sides two-sided-long-edge -n 2 -y
+```
+
+---
+
+## 🛠️ Command Line Options
+
+| Flag | Short | Description | Values |
 | :--- | :--- | :--- | :--- |
-| `--printer` | `-d` | Target printer name | (e.g., "HP-LaserJet") |
-| `--pages` | `-p` | Page range selection | `*`, `1-5`, `1,3` |
+| `--printer` | `-d` | Target printer name | (e.g., "Microsoft Print to PDF") |
+| `--pages` | `-p` | Page range selection | `*`, `1-5`, `1,3,5` |
 | `--copies` | `-n` | Number of copies | (integer) |
-| `--bw` | | Print in Black & White | |
-| `--color` | | Print in Color | |
+| `--bw` | | Force Black & White | |
+| `--color` | | Force Color | |
 | `--sides` | | Duplex mode | `one-sided`, `two-sided-long-edge`, `two-sided-short-edge` |
 | `--size` | | Paper size | `A4`, `Letter`, `Legal`, `A5` |
 | `--orientation`| | Page orientation | `Auto`, `Portrait`, `Landscape` |
-| `--fit` / `--no-fit`| | Toggle auto-scaling | |
-| `--merge` / `--no-merge`| `-m` / `-nm` | Toggle batch merging | |
+| `--fit` | | Auto-scale to page | |
+| `--merge` | `-m` | Merge multiple files | |
 | `--yes` | `-y` | Skip confirmation | |
-| `--output` | `-o` | Save to PDF path | (e.g., "output.pdf") |
+| `--output` | `-o` | Save as PDF path | (e.g., "my_scan.pdf") |
 
-### Workflow
-The tool will guide you through:
-1. **File Discovery:** Summary of all supported files found.
-2. **Printer Selection:** Choose your target device (skipped if `--printer` provided).
-3. **Batch Handling:** Choose to merge multiple files (skipped if `--merge` provided).
-4. **Page Range:** Specify which pages to include (skipped if `--pages` provided).
-5. **Options:** Color, Sides, Orientation, and Media selection (skipped if flags provided).
-6. **Copies:** Enter the number of copies (skipped if `--copies` provided).
-7. **Confirmation:** Final job review (skipped if `--yes` provided).
+---
 
-### Page Selection Syntax
-When prompted for pages, you can use:
-- `*`: All pages (default).
-- `1-5`: A range of pages.
-- `1,3,5`: A specific list of pages.
-- `1-3,5,7-9`: A mix of ranges and lists.
+## 🧭 Page Selection Syntax
 
-## Future Plans
-- Printer status indicators (e.g., ink levels, paper jams).
-- N-Up printing (multiple pages per sheet).
-- Watermarking (e.g., "DRAFT", "CONFIDENTIAL").
+When prompted (or using `-p`), you can use the following syntax:
+*   `*` : Print all pages (default).
+*   `1-5` : Print a continuous range.
+*   `1,3,5` : Print specific individual pages.
+*   `1-3,5,10-` : A mix (page 10 to end).
+
+---
+
+## 📜 Future Roadmap
+
+- [ ] Printer status indicators (Ink levels, paper status).
+- [ ] N-Up printing (multiple pages per sheet).
+- [ ] Custom Watermarking (e.g., "DRAFT", "CONFIDENTIAL").
+- [ ] Cloud printing integration.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
