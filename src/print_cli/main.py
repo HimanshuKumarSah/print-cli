@@ -32,6 +32,7 @@ INSTRUCTIONS = """
  • Choose between COLOR and BLACK & WHITE.
  • Select SINGLE or DOUBLE-SIDED printing.
  • Pick PAPER SIZE (A4/Letter) and AUTO-SCALE.
+ • Choose ORIENTATION (Auto/Portrait/Landscape).
 """
 
 DUPLEX_WARNING = """
@@ -118,6 +119,16 @@ def cli(file_path):
         if "Double-Sided" in duplex_mode:
             click.echo(click.style(DUPLEX_WARNING, fg="bright_yellow", bold=True))
 
+    # Prompt for Orientation
+    orientation = questionary.select(
+        "Select orientation:",
+        choices=["Auto", "Portrait", "Landscape"]
+    ).ask()
+
+    if not orientation:
+        click.echo("Job cancelled.")
+        return
+
     # Prompt for Paper Size and Scaling
     paper_size = "A4"
     fit_to_page = False
@@ -166,7 +177,7 @@ def cli(file_path):
     pages_msg = f" (Pages: {page_range})" if page_range != "*" else ""
     color_msg = f" [{color_mode}]" if printer != PDF_PRINTER else ""
     duplex_msg = f" [{duplex_mode}]" if printer != PDF_PRINTER else ""
-    layout_msg = f" [{paper_size}, Fit: {fit_to_page}]" if printer != PDF_PRINTER else ""
+    layout_msg = f" [{paper_size}, {orientation}, Fit: {fit_to_page}]" if printer != PDF_PRINTER else f" [{orientation}]"
     
     confirm = questionary.confirm(
         f"{action}{pages_msg}{color_msg}{duplex_msg}{layout_msg}?",
@@ -178,7 +189,7 @@ def cli(file_path):
         if platform.system() == "Windows" and printer != PDF_PRINTER:
             click.secho("\nNote: Color, Duplex, Size, and Scaling on Windows depend on your printer's default settings.", fg="yellow")
 
-        success = print_file(file_path, printer, int(copies), page_range, color_mode, duplex_mode, paper_size, fit_to_page, output_path)
+        success = print_file(file_path, printer, int(copies), page_range, color_mode, duplex_mode, paper_size, fit_to_page, orientation, output_path)
         if success:
             msg = f"File successfully saved to '{output_path}'." if printer == PDF_PRINTER else f"Job successfully submitted to '{printer}'."
             click.secho(f"\nSUCCESS: {msg}", fg="green", bold=True)

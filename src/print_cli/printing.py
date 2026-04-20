@@ -52,8 +52,8 @@ def validate_page_range(val):
         return True
     return "Please enter a valid page range (e.g., *, 1-5, 1,3,5)."
 
-def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Color", duplex_mode="One-Sided", paper_size="A4", fit_to_page=False, output_path=None):
-    """Execute the print job with optional page selection, color mode, duplex mode, and scaling."""
+def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Color", duplex_mode="One-Sided", paper_size="A4", fit_to_page=False, orientation="Auto", output_path=None):
+    """Execute the print job with optional page selection, color mode, duplex mode, scaling, and orientation."""
     os_type = platform.system()
     file_path = os.path.abspath(file_path)
     
@@ -61,12 +61,12 @@ def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Co
         if not output_path:
             return False
         try:
-            if page_range == "*" and not fit_to_page:
+            if page_range == "*" and not fit_to_page and orientation == "Auto":
                 shutil.copy2(file_path, output_path)
                 return True
             else:
                 if os_type in ["Linux", "Darwin"]:
-                    print("Page selection and scaling for 'Save as File' is currently only supported on Windows.")
+                    print("Page selection and orientation for 'Save as File' is currently only supported on Windows.")
                     return False
                 elif os_type == "Windows":
                     cmd = [
@@ -75,9 +75,10 @@ def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Co
                         f"--print-to-pdf={output_path}", 
                         "--print-to-pdf-no-header", 
                         f"--pages={page_range}", 
-                        f"file:///{file_path}"
                     ]
-                    # Note: fit_to_page and paper_size could be implemented here via --paper-width/height if needed
+                    if orientation == "Landscape":
+                        cmd.append("--landscape")
+                    cmd.append(f"file:///{file_path}")
                     subprocess.check_call(cmd)
                     return True
         except Exception as e:
@@ -108,6 +109,12 @@ def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Co
             # Fit to page
             if fit_to_page:
                 command.extend(["-o", "fit-to-page"])
+
+            # Orientation
+            if orientation == "Landscape":
+                command.extend(["-o", "landscape"])
+            elif orientation == "Portrait":
+                command.extend(["-o", "portrait"])
                 
             if page_range != "*":
                 command.extend(["-P", page_range])
@@ -118,7 +125,8 @@ def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Co
             target_file = file_path
             temp_pdf = None
             
-            if page_range != "*":
+            # If specific pages or orientation are requested on Windows, we MUST create a temp PDF first
+            if page_range != "*" or orientation != "Auto":
                 temp_dir = tempfile.gettempdir()
                 temp_pdf = os.path.join(temp_dir, f"print_subset_{os.getpid()}.pdf")
                 try:
@@ -128,12 +136,14 @@ def print_file(file_path, printer_name, copies=1, page_range="*", color_mode="Co
                         f"--print-to-pdf={temp_pdf}", 
                         "--print-to-pdf-no-header", 
                         f"--pages={page_range}", 
-                        f"file:///{file_path}"
                     ]
+                    if orientation == "Landscape":
+                        cmd.append("--landscape")
+                    cmd.append(f"file:///{file_path}")
                     subprocess.check_call(cmd)
                     target_file = temp_pdf
                 except Exception as e:
-                    print(f"Error extracting pages via Edge: {e}")
+                    print(f"Error extracting pages/orientation via Edge: {e}")
                     return False
 
             try:
