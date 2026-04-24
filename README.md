@@ -31,22 +31,24 @@ git clone https://github.com/HimanshuKumarSah/print-cli.git
 cd print-cli
 python install.py
 ```
-This script will install the dependencies, register the `print-cli` command, and help you fix your PATH if necessary.
+This script installs dependencies, registers the `print-cli` command, and helps configure your PATH on Windows.
 
 ### 🌎 Global Installation (pipx)
 If you prefer [pipx](https://github.com/pypa/pipx) for environment isolation:
 
-### 🐍 Standard Installation (pip)
-You can also install it using standard pip. Use the `-e` flag for a "live" link to the source code (useful for development):
+```bash
+pipx install git+https://github.com/HimanshuKumarSah/print-cli.git
+```
 
+### 🐍 Standard Installation (pip)
 ```bash
 pip install .
 ```
 
-> **Note for Windows Users:** If the `print-cli` command is not recognized after installation, ensure your Python Scripts directory (e.g., `%APPDATA%\Python\Python314\Scripts`) is in your system's **PATH** environment variable.
+> **Note for Windows Users:** If the `print-cli` command is not recognized after installation, restart your terminal. If it still doesn't work, you can always use the fallback command: `python -m print_cli <file_path>`.
 
 ### ⚡ Instant Run (No Install Required)
-If you have [uv](https://github.com/astral-sh/uv) installed, you can run the tool instantly without manual installation:
+If you have [uv](https://github.com/astral-sh/uv) installed, you can run the tool instantly:
 
 ```bash
 uvx --from git+https://github.com/HimanshuKumarSah/print-cli.git print-cli <file_path>
