@@ -23,20 +23,33 @@
 
 ## 🚀 Installation
 
+### 🛠️ One-Step Setup (Recommended)
+The easiest way to install `print-cli` and ensure it works system-wide is to run the included installation script:
+
+```bash
+git clone https://github.com/HimanshuKumarSah/print-cli.git
+cd print-cli
+python install.py
+```
+This script will install the dependencies, register the `print-cli` command, and help you fix your PATH if necessary.
+
+### 🌎 Global Installation (pipx)
+If you prefer [pipx](https://github.com/pypa/pipx) for environment isolation:
+
+### 🐍 Standard Installation (pip)
+You can also install it using standard pip. Use the `-e` flag for a "live" link to the source code (useful for development):
+
+```bash
+pip install .
+```
+
+> **Note for Windows Users:** If the `print-cli` command is not recognized after installation, ensure your Python Scripts directory (e.g., `%APPDATA%\Python\Python314\Scripts`) is in your system's **PATH** environment variable.
+
 ### ⚡ Instant Run (No Install Required)
 If you have [uv](https://github.com/astral-sh/uv) installed, you can run the tool instantly without manual installation:
 
 ```bash
 uvx --from git+https://github.com/HimanshuKumarSah/print-cli.git print-cli <file_path>
-```
-
-### 🛠️ Standard Installation
-Install the package in editable mode using pip:
-
-```bash
-git clone https://github.com/HimanshuKumarSah/print-cli.git
-cd print-cli
-pip install -e .
 ```
 
 ---
